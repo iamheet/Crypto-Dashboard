@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Mail, Lock, User, Eye, EyeOff, Loader } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const AuthModal = ({ isOpen, onClose }) => {
   const [mode, setMode] = useState('signup'); // 'login' or 'signup'
@@ -15,6 +16,7 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const { login, signup } = useAuth();
 
@@ -54,40 +56,6 @@ const AuthModal = ({ isOpen, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-
-    try {
-      let result;
-      if (mode === 'signup') {
-        result = await signup(formData);
-      } else {
-        result = await login(formData.email, formData.password);
-      }
-
-      if (result.success) {
-        onClose();
-        // Reset form
-        setFormData({
-          name: '',
-          email: '',
-          password: '',
-          confirmPassword: ''
-        });
-      } else {
-        setErrors({ general: result.error });
-      }
-    } catch (error) {
-      setErrors({ general: 'Something went wrong. Please try again.' });
-    }
-
-    setIsLoading(false);
-  };
-
   const switchMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login');
     setErrors({});
@@ -98,6 +66,55 @@ const AuthModal = ({ isOpen, onClose }) => {
       confirmPassword: ''
     });
   };
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!validateForm()) {
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    let result;
+
+    if (mode === "signup") {
+      result = await signup({
+        username: formData.name,
+        email: formData.email,
+        password: formData.password
+      });
+    } else {
+      result = await login(
+        formData.email,
+        formData.password
+      );
+    }
+
+    if (result && result.success) {
+      onClose();
+      
+      // Redirect to dashboard after successful login/signup
+      router.push('/dashboard');
+
+      setFormData({
+        name: "",
+        email: "",
+        password: "",
+        confirmPassword: ""
+      });
+    } else {
+      setErrors({ general: result?.error || 'Authentication failed. Please try again.' });
+    }
+  } catch (error) {
+    setErrors({
+      general: "Something went wrong. Please try again."
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   if (!isOpen) return null;
 

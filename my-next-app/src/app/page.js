@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Shield, 
   TrendingUp, 
@@ -20,18 +20,160 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import AuthModal from '../components/AuthModal';
-import { useAuth } from '../contexts/AuthContext';
+import PaymentModal from '../components/PaymentModal';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('monthly');
   const [openFaq, setOpenFaq] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pricingPlans, setPricingPlans] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [pricingLoaded, setPricingLoaded] = useState(false);
+  const [upgrading, setUpgrading] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
   
-  const { isAuthenticated, user } = useAuth();
+  // Ref for pricing section
+  const pricingSectionRef = useRef(null);
+  
+  const { user } = useAuth();
+  const isAuthenticated = !!user;
 
-  const toggleFaq = (index) => {
-    setOpenFaq(openFaq === index ? null : index);
+  // Intersection Observer for lazy loading pricing
+  useEffect(() => {
+    console.log('Setting up Intersection Observer for pricing section');
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          console.log('Pricing section intersection:', {
+            isIntersecting: entry.isIntersecting,
+            pricingLoaded: pricingLoaded,
+            intersectionRatio: entry.intersectionRatio
+          });
+          
+          if (entry.isIntersecting && !pricingLoaded) {
+            console.log('✅ Pricing section is visible, loading pricing data...');
+            fetchPricing();
+            setPricingLoaded(true);
+          }
+        });
+      },
+      {
+        rootMargin: '100px', // Start loading 100px before the section is visible
+        threshold: 0.1 // Trigger when 10% of the section is visible
+      }
+    );
+
+    if (pricingSectionRef.current) {
+      console.log('📍 Observing pricing section element');
+      observer.observe(pricingSectionRef.current);
+    } else {
+      console.log('❌ Pricing section ref not found');
+    }
+
+    return () => {
+      if (pricingSectionRef.current) {
+        console.log('🧹 Cleaning up pricing section observer');
+        observer.unobserve(pricingSectionRef.current);
+      }
+    };
+  }, [pricingLoaded]);
+
+  const fetchPricing = async () => {
+    setLoading(true);
+    try {
+      console.log('Fetching pricing data from API...');
+      const response = await fetch('http://localhost:5000/api/pricing/prices');
+      const data = await response.json();
+      console.log('Pricing data loaded:', data.plans?.length || 0, 'plans');
+      setPricingPlans(data.plans || []);
+    } catch (error) {
+      console.error('Error fetching pricing:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpgrade = async (plan) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Set selected plan and show payment modal
+    setSelectedPlan(plan);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSuccess = async (paymentData) => {
+    console.log('Payment successful:', paymentData);
+    setUpgrading(selectedPlan.id);
+    
+    try {
+      const requestBody = {
+        user_id: user.id,
+        plan: selectedPlan.name,
+        price: activeTab === 'monthly' ? selectedPlan.monthlyPrice : selectedPlan.yearlyPrice,
+        payment_id: paymentData.paymentId,
+        order_id: paymentData.orderId,
+        signature: paymentData.signature
+      };
+      
+      const response = await fetch('http://localhost:5000/api/subscription/upgrade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`Successfully upgraded to ${selectedPlan.name} plan! Payment ID: ${paymentData.paymentId}`);
+      } else {
+        alert(`Upgrade failed: ${data.message || 'Please try again.'}`);
+      }
+    } catch (error) {
+      console.error('Upgrade error:', error);
+      alert('Upgrade failed. Please try again.');
+    } finally {
+      setUpgrading(null);
+      setShowPaymentModal(false);
+      setSelectedPlan(null);
+    }
+  };
+
+  const handlePaymentFailure = (error) => {
+    console.error('Payment failed:', error);
+    alert(`Payment failed: ${error.description || 'Please try again.'}`);
+    setShowPaymentModal(false);
+    setSelectedPlan(null);
+  };
+
+  const handlePaymentClose = () => {
+    console.log('Payment modal closed');
+    setShowPaymentModal(false);
+    setSelectedPlan(null);
+  };
+
+  const handlePricingClick = (e) => {
+    e.preventDefault();
+    // Force refresh pricing data
+    setPricingLoaded(false);
+    setPricingPlans([]);
+    
+    // Scroll to pricing section
+    const pricingSection = document.getElementById('pricing');
+    if (pricingSection) {
+      pricingSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Fetch pricing data immediately and mark as loaded
+    fetchPricing();
+    setPricingLoaded(true);
   };
 
   return (
@@ -55,13 +197,13 @@ export default function Home() {
               <Link href="#features" className="text-gray-300 hover:text-white transition-colors">
                 Features
               </Link>
-              <Link href="#pricing" className="text-gray-300 hover:text-white transition-colors">
+              <Link href="#pricing" onClick={handlePricingClick} className="text-gray-300 hover:text-white transition-colors">
                 Pricing
               </Link>
               <Link href="#about" className="text-gray-300 hover:text-white transition-colors">
                 About
               </Link>
-              <Link href="#contact" className="text-gray-300 hover:text-white transition-colors">
+              <Link href="/contact" className="text-gray-300 hover:text-white transition-colors">
                 Contact
               </Link>
               {isAuthenticated ? (
@@ -92,13 +234,13 @@ export default function Home() {
               <Link href="#features" className="block text-gray-300 hover:text-white transition-colors">
                 Features
               </Link>
-              <Link href="#pricing" className="block text-gray-300 hover:text-white transition-colors">
+              <Link href="#pricing" onClick={handlePricingClick} className="block text-gray-300 hover:text-white transition-colors">
                 Pricing
               </Link>
               <Link href="#about" className="block text-gray-300 hover:text-white transition-colors">
                 About
               </Link>
-              <Link href="#contact" className="block text-gray-300 hover:text-white transition-colors">
+              <Link href="/contact" className="block text-gray-300 hover:text-white transition-colors">
                 Contact
               </Link>
               {isAuthenticated ? (
@@ -256,20 +398,20 @@ export default function Home() {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-black">
+      <section id="pricing" ref={pricingSectionRef} className="py-12 md:py-20 bg-black">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6">
               <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                 Pricing
               </span>
             </h2>
-            <p className="text-xl text-gray-300 mb-8">Choose the plan that fits your needs</p>
+            <p className="text-lg md:text-xl text-gray-300 mb-6 md:mb-8 px-4">Choose the plan that fits your needs</p>
             
             {/* Toggle */}
-            <div className="inline-flex bg-gray-800 rounded-full p-1">
+            <div className="inline-flex bg-gray-800 rounded-full p-1 mx-4">
               <button 
-                className={`px-6 py-2 rounded-full transition-colors ${
+                className={`px-4 md:px-6 py-2 rounded-full transition-colors text-sm md:text-base ${
                   activeTab === 'monthly' 
                     ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white' 
                     : 'text-gray-400 hover:text-white'
@@ -279,7 +421,7 @@ export default function Home() {
                 Monthly
               </button>
               <button 
-                className={`px-6 py-2 rounded-full transition-colors ${
+                className={`px-4 md:px-6 py-2 rounded-full transition-colors text-sm md:text-base ${
                   activeTab === 'yearly' 
                     ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white' 
                     : 'text-gray-400 hover:text-white'
@@ -291,90 +433,108 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Basic Plan */}
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-8 border border-gray-700">
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold mb-2">Basic</h3>
-                <div className="flex items-baseline">
-                  <span className="text-4xl font-bold">$23</span>
-                  <span className="text-gray-400 ml-2">/{activeTab === 'monthly' ? 'month' : 'year'}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
+            {!pricingLoaded ? (
+              // Loading skeleton before pricing section is visible
+              <div className="col-span-1 lg:col-span-3 text-center text-gray-400">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-gray-800 rounded-2xl p-6 md:p-8 border border-gray-700 animate-pulse">
+                      <div className="h-5 md:h-6 bg-gray-700 rounded mb-3 md:mb-4"></div>
+                      <div className="h-6 md:h-8 bg-gray-700 rounded mb-2"></div>
+                      <div className="h-3 md:h-4 bg-gray-700 rounded mb-4 md:mb-6"></div>
+                      <div className="space-y-2 md:space-y-3 mb-6 md:mb-8">
+                        {[1, 2, 3, 4].map((j) => (
+                          <div key={j} className="h-3 md:h-4 bg-gray-700 rounded"></div>
+                        ))}
+                      </div>
+                      <div className="h-10 md:h-12 bg-gray-700 rounded"></div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Portfolio tracking up to 10 assets</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Basic price alerts</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Email support</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Mobile app access</span>
-                </li>
-              </ul>
-              
-              <button className="w-full border border-purple-500 text-purple-400 py-3 rounded-full hover:bg-purple-500/10 transition-colors">
-                Get Started
-              </button>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-2xl p-8 border border-purple-500/50 relative">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-1 rounded-full text-sm font-semibold">
-                  Most Popular
-                </span>
+            ) : loading ? (
+              <div className="col-span-1 lg:col-span-3 text-center text-gray-400">
+                <div className="animate-spin w-6 md:w-8 h-6 md:h-8 border-2 border-purple-400 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-sm md:text-base">Loading pricing plans...</p>
               </div>
-              
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold mb-2">Pro</h3>
-                <div className="flex items-baseline">
-                  <span className="text-4xl font-bold">$39</span>
-                  <span className="text-gray-400 ml-2">/{activeTab === 'monthly' ? 'month' : 'year'}</span>
+            ) : pricingPlans.length > 0 ? (
+              pricingPlans.map((plan) => (
+                <div 
+                  key={plan.id}
+                  className={`rounded-2xl p-6 md:p-8 border hover:scale-105 transition-all duration-300 ${
+                    plan.popular
+                      ? 'bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/50 relative lg:scale-105' 
+                      : 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-purple-500/30'
+                  }`}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-3 md:px-4 py-1 rounded-full text-xs md:text-sm font-semibold">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="mb-6 md:mb-8">
+                    <h3 className="text-xl md:text-2xl font-bold mb-2">{plan.name}</h3>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl md:text-4xl font-bold">${activeTab === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice}</span>
+                      <span className="text-gray-400 ml-2 text-sm md:text-base">/{activeTab === 'monthly' ? 'month' : 'year'}</span>
+                    </div>
+                    {activeTab === 'yearly' && (
+                      <p className="text-green-400 text-xs md:text-sm mt-2">{plan.savings}</p>
+                    )}
+                  </div>
+                  
+                  <ul className="space-y-3 md:space-y-4 mb-6 md:mb-8">
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-start">
+                        <Check className="w-4 md:w-5 h-4 md:h-5 text-green-400 mr-2 md:mr-3 flex-shrink-0 mt-0.5" />
+                        <span className="text-gray-300 text-sm md:text-base leading-relaxed">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  {plan.popular ? (
+                    isAuthenticated ? (
+                      <button 
+                        onClick={() => handleUpgrade(plan)}
+                        disabled={upgrading === plan.id}
+                        className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 text-sm md:text-base font-medium"
+                      >
+                        {upgrading === plan.id ? 'Processing...' : 'Pay Now'}
+                      </button>
+                    ) : (
+                      <button onClick={() => setShowAuthModal(true)} className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-full hover:opacity-90 transition-opacity text-sm md:text-base font-medium">
+                        Start Free Trial
+                      </button>
+                    )
+                  ) : (
+                    <button 
+                      onClick={() => handleUpgrade(plan)}
+                      disabled={upgrading === plan.id || !isAuthenticated}
+                      className="w-full border border-purple-500 text-purple-400 py-3 rounded-full hover:bg-purple-500/10 transition-colors disabled:opacity-50 text-sm md:text-base font-medium"
+                    >
+                      {upgrading === plan.id ? 'Processing...' : isAuthenticated ? 'Pay Now' : 'Sign Up First'}
+                    </button>
+                  )}
                 </div>
-              </div>
-              
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Unlimited portfolio tracking</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Advanced AI analytics</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Real-time alerts</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">Priority support</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="w-5 h-5 text-green-400 mr-3" />
-                  <span className="text-gray-300">API access</span>
-                </li>
-              </ul>
-              
-              {isAuthenticated ? (
-                <Link href="/dashboard" className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-full hover:opacity-90 transition-opacity text-center inline-block">
-                  Go to Dashboard
-                </Link>
-              ) : (
-                <button onClick={() => setShowAuthModal(true)} className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-full hover:opacity-90 transition-opacity">
-                  Start Free Trial
+              ))
+            ) : (
+              <div className="col-span-1 lg:col-span-3 text-center text-gray-400">
+                <p className="mb-4 text-sm md:text-base">No pricing plans available</p>
+                <button 
+                  onClick={() => {
+                    setPricingLoaded(false);
+                    fetchPricing();
+                  }}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg transition-colors text-sm md:text-base"
+                >
+                  Retry Loading
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -488,6 +648,17 @@ export default function Home() {
 
       {/* Auth Modal */}
       <AuthModal isOpen={showAuthModal && !isAuthenticated} onClose={() => setShowAuthModal(false)} />
+      
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={handlePaymentClose}
+        plan={selectedPlan}
+        user={user}
+        billingCycle={activeTab}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentFailure={handlePaymentFailure}
+      />
     </div>
   );
 }

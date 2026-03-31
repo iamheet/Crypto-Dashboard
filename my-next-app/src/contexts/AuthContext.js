@@ -18,99 +18,69 @@ export const AuthProvider = ({ children }) => {
 
   // Load user from localStorage on mount
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('cryptonexus_user');
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        // Check if trial has expired
-        if (userData.trialExpiresAt && new Date() > new Date(userData.trialExpiresAt)) {
-          // Trial expired, clear user data
-          localStorage.removeItem('cryptonexus_user');
-          setUser(null);
-        } else {
-          setUser(userData);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading user from localStorage:', error);
-      localStorage.removeItem('cryptonexus_user');
-    }
+    // Clear any old localStorage data to ensure we use backend auth
+    localStorage.removeItem('cryptonexus_user');
+    localStorage.removeItem('cryptonexus_users');
     setIsLoading(false);
   }, []);
 
-  // Save user to localStorage whenever user state changes
+  // Don't save user to localStorage for backend auth
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('cryptonexus_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('cryptonexus_user');
-    }
+    // We're using backend auth now, no localStorage needed
   }, [user]);
 
   const login = async (email, password) => {
     try {
-      // Simulate API call - in real app, this would be an actual API request
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
       
-      // Check if user exists in localStorage (for returning users)
-      const existingUsers = JSON.parse(localStorage.getItem('cryptonexus_users') || '[]');
-      const existingUser = existingUsers.find(u => u.email === email);
+      const data = await response.json();
+      console.log('Backend login response:', data); // Debug log
       
-      if (existingUser && existingUser.password === password) {
-        setUser(existingUser);
-        return { success: true, user: existingUser };
+      if (response.ok && data.token && data.user) {
+        const user = {
+          ...data.user,
+          token: data.token
+        };
+        console.log('User object after processing:', user); // Debug log
+        setUser(user);
+        return { success: true, user };
       } else {
-        throw new Error('Invalid email or password');
+        throw new Error(data.message || 'Login failed');
       }
     } catch (error) {
+      console.error('Login error:', error);
       return { success: false, error: error.message };
     }
   };
 
   const signup = async (userData) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData)
+      });
       
-      const { email, password, name } = userData;
+      const data = await response.json();
+      console.log('Backend signup response:', data); // Debug log
       
-      // Check if user already exists
-      const existingUsers = JSON.parse(localStorage.getItem('cryptonexus_users') || '[]');
-      if (existingUsers.find(u => u.email === email)) {
-        throw new Error('User already exists with this email');
+      if (response.ok && data.user) {
+        console.log('User object from signup:', data.user); // Debug log
+        setUser(data.user);
+        return { success: true, user: data.user };
+      } else {
+        throw new Error(data.message || 'Registration failed');
       }
-      
-      // Create new user with 7-day trial
-      const trialStartDate = new Date();
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 7);
-      
-      const newUser = {
-        id: Date.now().toString(),
-        name,
-        email,
-        password, // In real app, this would be hashed
-        createdAt: trialStartDate.toISOString(),
-        trialStartedAt: trialStartDate.toISOString(),
-        trialExpiresAt: trialEndDate.toISOString(),
-        isTrialActive: true,
-        isPremium: false,
-        preferences: {
-          darkMode: true,
-          notifications: true,
-          defaultAgent: 'Wallet Analyst'
-        }
-      };
-      
-      // Save to users list
-      const updatedUsers = [...existingUsers, newUser];
-      localStorage.setItem('cryptonexus_users', JSON.stringify(updatedUsers));
-      
-      // Set current user
-      setUser(newUser);
-      
-      return { success: true, user: newUser };
     } catch (error) {
+      console.error('Signup error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -125,13 +95,7 @@ export const AuthProvider = ({ children }) => {
     
     const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
-    
-    // Update in users list as well
-    const existingUsers = JSON.parse(localStorage.getItem('cryptonexus_users') || '[]');
-    const updatedUsers = existingUsers.map(u => 
-      u.id === user.id ? updatedUser : u
-    );
-    localStorage.setItem('cryptonexus_users', JSON.stringify(updatedUsers));
+    // No localStorage updates needed for backend auth
   };
 
   const getRemainingTrialDays = () => {

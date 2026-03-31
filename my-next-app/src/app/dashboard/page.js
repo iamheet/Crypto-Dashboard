@@ -2,21 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import Sidebar from '../../components/Sidebar';
 import MainContent from '../../components/MainContent';
 import ChatPanel from '../../components/ChatPanel';
+import UserSettings from '../../components/UserSettings';
 
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState('chat');
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const [showUserSettings, setShowUserSettings] = useState(false);
+  const { user, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !user) {
       router.push('/');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [user, isLoading, router]);
+
+  const handleSectionClick = (section) => {
+    if (section === 'settings') {
+      setShowUserSettings(true);
+    } else {
+      setActiveSection(section);
+    }
+  };
 
   // Show loading while checking authentication
   if (isLoading) {
@@ -35,7 +45,7 @@ export default function Dashboard() {
   }
 
   // Redirect if not authenticated
-  if (!isAuthenticated) {
+  if (!user) {
     return null;
   }
 
@@ -44,7 +54,7 @@ export default function Dashboard() {
       {/* Left Sidebar */}
       <Sidebar 
         activeItem={activeSection} 
-        onItemClick={setActiveSection} 
+        onItemClick={handleSectionClick} 
       />
       
       {/* Main Content Area */}
@@ -52,6 +62,11 @@ export default function Dashboard() {
       
       {/* Right Chat Panel */}
       <ChatPanel />
+      
+      {/* User Settings Modal */}
+      {showUserSettings && (
+        <UserSettings onClose={() => setShowUserSettings(false)} />
+      )}
     </div>
   );
 }

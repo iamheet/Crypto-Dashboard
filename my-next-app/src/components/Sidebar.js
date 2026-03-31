@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   MessageSquare,
   Heart,
@@ -19,13 +20,33 @@ import {
   LogOut,
   Clock,
   Crown,
+  User,
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const Sidebar = ({ activeItem, onItemClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const { user, logout, getRemainingTrialDays } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  
+  const handleLogout = () => {
+    console.log('🚪 Logout clicked, redirecting to home...');
+    logout(() => {
+      router.push('/');
+    });
+    setShowUserMenu(false);
+  };
+  
+  // Mock function for trial days
+  const getRemainingTrialDays = () => {
+    if (!user?.trialExpiresAt) return 7;
+    const now = new Date();
+    const expiryDate = new Date(user.trialExpiresAt);
+    const diffTime = expiryDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
 
   const navigationItems = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -34,6 +55,7 @@ const Sidebar = ({ activeItem, onItemClick }) => {
     { id: 'strategies', label: 'Strategies', icon: TrendingUp },
     { id: 'trending', label: 'Trending', icon: Activity },
     { id: 'feed', label: 'Feed', icon: Rss },
+    { id: 'profile', label: 'Profile', icon: User },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'pricing', label: 'Pricing', icon: DollarSign },
   ];
@@ -71,11 +93,11 @@ const Sidebar = ({ activeItem, onItemClick }) => {
             >
               <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-bold">
-                  {user.name?.charAt(0).toUpperCase()}
+                  {user.username?.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="flex-1 text-left">
-                <div className="text-white text-sm font-medium">{user.name}</div>
+                <div className="text-white text-sm font-medium">{user.username}</div>
                 <div className="flex items-center space-x-1 text-xs">
                   {user.isPremium ? (
                     <>
@@ -96,6 +118,16 @@ const Sidebar = ({ activeItem, onItemClick }) => {
               <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg border border-gray-700 z-10">
                 <button
                   onClick={() => {
+                    onItemClick('profile');
+                    setShowUserMenu(false);
+                  }}
+                  className="w-full flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors border-b border-gray-700"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="text-sm">View Profile</span>
+                </button>
+                <button
+                  onClick={() => {
                     onItemClick('settings');
                     setShowUserMenu(false);
                   }}
@@ -105,10 +137,7 @@ const Sidebar = ({ activeItem, onItemClick }) => {
                   <span className="text-sm">Settings</span>
                 </button>
                 <button
-                  onClick={() => {
-                    logout();
-                    setShowUserMenu(false);
-                  }}
+                  onClick={handleLogout}
                   className="w-full flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-red-400 hover:bg-gray-700 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
