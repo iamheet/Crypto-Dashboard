@@ -1,8 +1,8 @@
-
+import API_BASE_URL from "../config/api";
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/auth';
+const API_URL = `${API_BASE_URL}/api/auth`;
 
 console.log('🟡 useAuth hook loaded');
 
