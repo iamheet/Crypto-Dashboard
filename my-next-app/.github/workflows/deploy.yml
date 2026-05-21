@@ -1,0 +1,35 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 13.205.31.99
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/Crypto-Dashboard/my-next-app
+            
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Rebuilding frontend..."
+            sudo docker rm -f myapp || true
+            sudo docker build -t frontend .
+            sudo docker run -d -p 3000:3000 --name myapp frontend
+
+            echo "Restarting backend..."
+            cd backend
+            pm2 restart all
+
+            echo "Restarting nginx..."
+            sudo systemctl restart nginx
