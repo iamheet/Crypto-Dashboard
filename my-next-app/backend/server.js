@@ -1,9 +1,15 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
 const mongoose = require('mongoose');
 
-mongoose.connect("mongodb+srv://iamheetchokshi_db_user:S6IjhHTtO7rLUw2a@cryptonexus.fx9fte6.mongodb.net/?appName=Cryptonexus")
+if (!process.env.MONGO_URI) {
+  console.error('FATAL: MONGO_URI environment variable is not set.');
+  process.exit(1);
+}
+
+mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("Connected to MongoDB"))
 .catch((err) => console.log("Failed to connect to MongoDB", err));
 
@@ -19,6 +25,7 @@ app.use('/api/auth', authroutes);
 app.use('/api/pricing', pricingroutes);
 app.use('/api/subscription',subscriptionroutes)
 app.use('/api/contact',contactroutes)
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

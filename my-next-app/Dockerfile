@@ -1,0 +1,21 @@
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# NEXT_PUBLIC_* vars are baked in at build time — pass them as build args
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_RAZORPAY_KEY_ID
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_RAZORPAY_KEY_ID=$NEXT_PUBLIC_RAZORPAY_KEY_ID
+
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

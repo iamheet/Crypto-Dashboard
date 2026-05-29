@@ -47,7 +47,7 @@ export default function Contact() {
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/contact/sendmessage', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contact/sendmessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

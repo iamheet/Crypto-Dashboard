@@ -1,0 +1,29 @@
+services:
+  frontend:
+    image: crypto-dashboard
+    container_name: crypto-frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000}
+      - NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID}
+    depends_on:
+      - backend
+
+  backend:
+    image: crypto-backend
+    container_name: crypto-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=5000
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo
+    container_name: crypto-mongodb
+    ports:
+      - "27017:27017"
