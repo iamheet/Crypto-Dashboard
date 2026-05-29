@@ -1,4 +1,5 @@
 'use client';
+import API_BASE_URL from "../config/api";
 
 import { useState, useEffect } from 'react';
 import { ArrowRight, Crown, Check } from 'lucide-react';
@@ -24,7 +25,7 @@ const MainContent = ({ activeSection }) => {
   const fetchPricing = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/pricing/prices');
+      const response = await fetch(`${API_BASE_URL}/api/pricing/prices`);
       const data = await response.json();
       setPricingPlans(data.plans || []);
     } catch (error) {

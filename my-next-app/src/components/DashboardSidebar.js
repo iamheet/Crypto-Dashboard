@@ -1,5 +1,5 @@
 'use client';
-
+import API_BASE_URL from "../config/api";
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Plus, Wallet, RefreshCw, BookOpen, Crown, Check } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
@@ -43,7 +43,7 @@ const DashboardSidebar = ({ sentinelCore, currentMode, currentData }) => {
   useEffect(() => {
     const fetchPricing = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/pricing/prices');
+        const response = await fetch('${API_BASE_URL}/api/pricing/prices');
         const data = await response.json();
         setPricingPlans(data.plans || []);
       } catch (error) {
@@ -111,7 +111,7 @@ const DashboardSidebar = ({ sentinelCore, currentMode, currentData }) => {
 
     setUpgrading(plan.id);
     try {
-      const response = await fetch('http://localhost:5000/api/subscription/upgrade', {
+      const response = await fetch('fetch(`${API_BASE_URL}/api/subscription/upgrade`', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

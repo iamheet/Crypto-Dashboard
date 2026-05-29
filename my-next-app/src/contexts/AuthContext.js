@@ -16,19 +16,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Clear old localStorage on mount
   useEffect(() => {
-    // Clear any old localStorage data to ensure we use backend auth
     localStorage.removeItem('cryptonexus_user');
     localStorage.removeItem('cryptonexus_users');
     setIsLoading(false);
   }, []);
 
-  // Don't save user to localStorage for backend auth
-  useEffect(() => {
-    // We're using backend auth now, no localStorage needed
-  }, [user]);
-
+  // LOGIN FUNCTION
   const login = async (email, password) => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
@@ -38,18 +33,17 @@ export const AuthProvider = ({ children }) => {
         },
         body: JSON.stringify({ email, password })
       });
-      
+
       const data = await response.json();
-      console.log('Backend login response:', data); // Debug log
-      
+      console.log('Backend login response:', data);
+
       if (response.ok && data.token && data.user) {
-        const user = {
+        const userData = {
           ...data.user,
           token: data.token
         };
-        console.log('User object after processing:', user); // Debug log
-        setUser(user);
-        return { success: true, user };
+        setUser(userData);
+        return { success: true, user: userData };
       } else {
         throw new Error(data.message || 'Login failed');
       }
@@ -59,6 +53,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // SIGNUP FUNCTION
   const signup = async (userData) => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
@@ -68,12 +63,11 @@ export const AuthProvider = ({ children }) => {
         },
         body: JSON.stringify(userData)
       });
-      
+
       const data = await response.json();
-      console.log('Backend signup response:', data); // Debug log
-      
+      console.log('Backend signup response:', data);
+
       if (response.ok && data.user) {
-        console.log('User object from signup:', data.user); // Debug log
         setUser(data.user);
         return { success: true, user: data.user };
       } else {
@@ -87,25 +81,20 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
-    // Don't remove from users list, just clear current session
   };
 
   const updateUser = (updates) => {
     if (!user) return;
-    
     const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
-    // No localStorage updates needed for backend auth
   };
 
   const getRemainingTrialDays = () => {
     if (!user || !user.trialExpiresAt) return 0;
-    
     const now = new Date();
     const expiryDate = new Date(user.trialExpiresAt);
     const diffTime = expiryDate - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
     return Math.max(0, diffDays);
   };
 
